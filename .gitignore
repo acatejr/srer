@@ -1,0 +1,7 @@
+*.bak
+*.pyc
+*.log
+.env
+.vscode/
+.docker/
+fixtures/
