@@ -1,11 +1,14 @@
 from django.urls import path
+from .views import HomeView
 # from graphene_django.views import GraphQLView
 # from .views import RaingageAPIView, PrecipEventAPIView, HomeView, PrecipEventList
 # from .schema import schema
 
 app_name = 'precip'
 
-urlpatterns = []
+urlpatterns = [
+    path(r'', HomeView.as_view()),
+]
 
 # urlpatterns = [
 #     path(r'graphql', GraphQLView.as_view(graphiql=True, schema=schema), name='srer_graphql'),
