@@ -20,5 +20,6 @@ from django.urls import path, include
 urlpatterns = [
     path('', RedirectView.as_view(url='admin/')),
     path('precip/', include('precip.urls', namespace='precip')),
+    path('api/', include('api.urls', namespace='api')),
     path('admin/', admin.site.urls),
 ]
