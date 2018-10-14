@@ -1,0 +1,7 @@
+.gitignore
+docker-compose.yml
+Dockerfile
+Dockerfile.pgsql
+
+.vscode/
+.docker/
