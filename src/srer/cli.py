@@ -58,23 +58,21 @@ def download_repeat_photo_images():
 
 
 @cli.command()
-def download_repeat_photography() -> None:
-    """Download Repeat Photography images."""
+def download_repeat_photography_metadata() -> None:
+    """Download Repeat Photography image metadata."""
 
     photo_metadata_list = []
 
     url = "https://santarita.arizona.edu/photos"
     typer.echo(f"Fetching photostation list from {url}...")
 
-    station_list_file = "photo_station_list.csv"
+    station_list_file = "data/photo_station_list.csv"
     stations = None
     with open(station_list_file, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         stations = [row for row in reader]
-        typer.echo(f"Loaded {len(stations)} stations from {station_list_file}.")
 
     if stations:
-        # for station in stations[0:4]:
         for station in stations:
             station_id = station.get("stationid")
             photo_url = f"{url}/{station_id}"
