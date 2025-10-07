@@ -6,3 +6,6 @@
 .docker/
 fixtures/
 *scratch*
+tmp/
+data/srer/photos/
+.DS_Store
