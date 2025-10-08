@@ -4,6 +4,10 @@ from bs4 import BeautifulSoup
 import csv
 import json
 import os
+from pathlib import Path
+
+from .image_similarity import ImageSimilarityFinder
+from .description_generator import DescriptionGenerator
 
 cli = typer.Typer()
 
@@ -121,6 +125,109 @@ def download_repeat_photography_metadata() -> None:
     typer.echo(f"Downloaded metadata for {len(photo_metadata_list)} photos.")
     with open('repeat_photography_metadata.json', 'w', encoding='utf-8') as f:
         json.dump(photo_metadata_list, f, ensure_ascii=False, indent=4)
+
+
+@cli.command()
+def describe_photo(
+    image_path: str = typer.Argument(..., help="Path to the photo to describe"),
+    top_k: int = typer.Option(5, "--top-k", "-k", help="Number of similar photos to use"),
+    max_distance: int = typer.Option(20, "--max-distance", "-d", help="Maximum similarity distance"),
+    use_vision: bool = typer.Option(True, "--vision/--no-vision", help="Use vision API to analyze image"),
+    provider: str = typer.Option("anthropic", "--provider", "-p", help="AI provider: 'anthropic' or 'ollama'"),
+    ollama_model: str = typer.Option("llama3.2-vision", "--ollama-model", help="Ollama model to use"),
+    ollama_host: str = typer.Option(None, "--ollama-host", help="Ollama host URL (e.g., http://localhost:11434)"),
+    output: str = typer.Option(None, "--output", "-o", help="Output file path (prints to stdout if not specified)")
+) -> None:
+    """Generate a description for a new photo based on similar existing photos.
+
+    This command finds similar photos in the SRER archive using perceptual hashing,
+    then uses AI (Claude or Ollama) to generate a description in the style of existing photo descriptions.
+
+    For Anthropic provider: Requires ANTHROPIC_API_KEY environment variable to be set.
+    For Ollama provider: Requires Ollama to be running locally (default: http://localhost:11434).
+
+    Example:
+        srer describe-photo /path/to/new_photo.jpg
+        srer describe-photo /path/to/new_photo.jpg --provider ollama
+        srer describe-photo /path/to/new_photo.jpg --provider ollama --ollama-model llava
+        srer describe-photo /path/to/new_photo.jpg --top-k 10 --no-vision
+        srer describe-photo /path/to/new_photo.jpg -o description.txt
+    """
+    query_path = Path(image_path)
+
+    if not query_path.exists():
+        typer.echo(f"Error: Image file not found: {image_path}", err=True)
+        raise typer.Exit(1)
+
+    # Validate provider
+    if provider not in ["anthropic", "ollama"]:
+        typer.echo(f"Error: Unknown provider '{provider}'. Use 'anthropic' or 'ollama'", err=True)
+        raise typer.Exit(1)
+
+    # Check for API key if using Anthropic
+    api_key = None
+    if provider == "anthropic":
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            typer.echo("Error: ANTHROPIC_API_KEY environment variable not set", err=True)
+            typer.echo("Please set it with: export ANTHROPIC_API_KEY='your-api-key'", err=True)
+            raise typer.Exit(1)
+
+    metadata_path = Path("repeat_photography_metadata.json")
+    if not metadata_path.exists():
+        typer.echo("Error: repeat_photography_metadata.json not found", err=True)
+        typer.echo("Please run: srer download-repeat-photography-metadata", err=True)
+        raise typer.Exit(1)
+
+    photo_base_dir = Path(DEST_OUTPUT_DIR)
+    if not photo_base_dir.exists():
+        typer.echo("Error: Photo directory not found", err=True)
+        typer.echo("Please run: srer download-repeat-photo-images", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Finding similar photos to {image_path}...")
+
+    # Find similar photos
+    finder = ImageSimilarityFinder(metadata_path, photo_base_dir)
+    similar_photos = finder.find_similar_photos(query_path, top_k=top_k, max_distance=max_distance)
+
+    if not similar_photos:
+        typer.echo("No similar photos found. Try increasing --max-distance", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Found {len(similar_photos)} similar photos")
+    for i, (entry, distance, local_path) in enumerate(similar_photos, 1):
+        typer.echo(f"  {i}. Station {entry['station_id']}, Archive No. {entry['photo_archive_no']} (distance: {distance})")
+
+    descriptions = finder.get_photo_descriptions(similar_photos)
+
+    typer.echo(f"\nGenerating description using {provider}...")
+
+    # Generate description
+    generator = DescriptionGenerator(
+        provider=provider,
+        api_key=api_key,
+        ollama_model=ollama_model,
+        ollama_host=ollama_host
+    )
+
+    if use_vision:
+        description = generator.generate_description(query_path, descriptions)
+    else:
+        description = generator.generate_description_text_only(descriptions)
+
+    # Output result
+    if output:
+        output_path = Path(output)
+        output_path.write_text(description)
+        typer.echo(f"\nDescription saved to {output}")
+    else:
+        typer.echo("\n" + "=" * 80)
+        typer.echo("GENERATED DESCRIPTION")
+        typer.echo("=" * 80)
+        typer.echo(description)
+        typer.echo("=" * 80)
+
 
 if __name__ == "__main__":
     cli()
