@@ -5,6 +5,7 @@ import csv
 import json
 import os
 from pathlib import Path
+from PIL import Image
 
 from .image_similarity import ImageSimilarityFinder
 from .description_generator import DescriptionGenerator
@@ -281,6 +282,56 @@ def describe_photo(
         typer.echo(description)
         typer.echo("=" * 80)
 
+
+def tif_to_jpg(tif_path: Path, jpg_path: Path) -> None:
+    """Convert a TIFF image to JPEG format."""
+
+    with Image.open(tif_path) as img:
+        rgb_img = img.convert("RGB")
+        rgb_img.save(jpg_path, "JPEG")
+
+@cli.command()
+def convert_repeat_photography_tifs_to_jpgs() -> None:
+    """Convert all TIFF images in the Repeat Photography dataset to JPEG format."""
+
+    metadata_path = Path("./data/repeat_photography_metadata.json")
+    if not metadata_path.exists():
+        typer.echo("Error: repeat_photography_metadata.json not found", err=True)
+        typer.echo("Please run: srer download-repeat-photography-metadata", err=True)
+        raise typer.Exit(1)
+
+    photo_base_dir = Path(DEST_OUTPUT_DIR)
+    if not photo_base_dir.exists():
+        typer.echo("Error: Photo directory not found", err=True)
+        typer.echo("Please run: srer download-repeat-photo-images", err=True)
+        raise typer.Exit(1)
+
+    with open(metadata_path, "r", encoding="utf-8") as f:
+        photo_metadata_list = json.load(f)
+        for photo_metadata in photo_metadata_list:
+            station_id = photo_metadata.get("station_id")
+            photo_href = photo_metadata.get("photo_href")
+
+            if not photo_href or "No link found" in photo_href:
+                continue
+
+            filename = photo_href.split("/")[-1]
+            if not filename.lower().endswith(".tif") and not filename.lower().endswith(".tiff"):
+                continue  # Skip non-TIFF files
+
+            tif_path = photo_base_dir / station_id / filename
+            jpg_filename = filename.rsplit(".", 1)[0] + ".jpg"
+            jpg_path = photo_base_dir / station_id / jpg_filename
+
+            if not tif_path.exists():
+                typer.echo(f"TIFF file not found: {tif_path}", err=True)
+                continue
+
+            try:
+                tif_to_jpg(tif_path, jpg_path)
+                typer.echo(f"Converted {tif_path} to {jpg_path}")
+            except Exception as e:
+                typer.echo(f"Failed to convert {tif_path}: {e}", err=True)
 
 if __name__ == "__main__":
     cli()
