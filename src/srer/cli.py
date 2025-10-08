@@ -32,40 +32,80 @@ def health() -> None:
 
 @cli.command()
 def download_repeat_photo_images():
-    """Download Repeat Photography images based on metadata file."""
+    """Download Repeat Photography images based on metadata file.
 
-    with open("repeat_photography_metadata.json", "r", encoding="utf-8") as f:
+    Automatically converts TIF images to JPG format and updates metadata accordingly.
+    """
+    metadata_file = "data/repeat_photography_metadata.json"
+
+    with open(metadata_file, "r", encoding="utf-8") as f:
         photo_metadata_list = json.load(f)
-        for photo_metadata in photo_metadata_list:
-            station_id = photo_metadata.get("station_id")
-            photo_archive_no = photo_metadata.get("photo_archive_no")
-            photo_href = photo_metadata.get("photo_href")
-            summary_text = photo_metadata.get("summary_text")
-            direction = photo_metadata.get("direction")
 
-            photo_dir = f"{DEST_OUTPUT_DIR}/{station_id}"
-            if not os.path.exists(photo_dir):
-                os.makedirs(photo_dir)
+    metadata_updated = False
 
-            if not photo_href or "No link found" in photo_href:
-                typer.echo(
-                    f"No valid photo link for station {station_id}, archive no {photo_archive_no}. Skipping."
-                )
-                continue
+    for photo_metadata in photo_metadata_list:
+        station_id = photo_metadata.get("station_id")
+        photo_archive_no = photo_metadata.get("photo_archive_no")
+        photo_href = photo_metadata.get("photo_href")
+        summary_text = photo_metadata.get("summary_text")
+        direction = photo_metadata.get("direction")
 
-            output_path = f"{photo_dir}/{photo_href.split('/')[-1]}"
-            response = requests.get(photo_href)
-            if response.status_code == 200:
-                try:
-                    with open(output_path, "wb") as img_file:
-                        img_file.write(response.content)
-                    typer.echo(f"Saved image to {output_path}")
-                except Exception as e:
-                    pass
-            else:
-                typer.echo(
-                    f"Failed to download image from {photo_href}. Status code: {response.status_code}"
-                )
+        photo_dir = f"{DEST_OUTPUT_DIR}/{station_id}"
+        if not os.path.exists(photo_dir):
+            os.makedirs(photo_dir)
+
+        if not photo_href or "No link found" in photo_href:
+            typer.echo(
+                f"No valid photo link for station {station_id}, archive no {photo_archive_no}. Skipping."
+            )
+            continue
+
+        filename = photo_href.split('/')[-1]
+        output_path = f"{photo_dir}/{filename}"
+
+        response = requests.get(photo_href)
+        if response.status_code == 200:
+            try:
+                with open(output_path, "wb") as img_file:
+                    img_file.write(response.content)
+                typer.echo(f"Saved image to {output_path}")
+
+                # Check if it's a TIF file and convert to JPG
+                if filename.lower().endswith(('.tif', '.tiff')):
+                    tif_path = Path(output_path)
+                    jpg_filename = filename.rsplit(".", 1)[0] + ".jpg"
+                    jpg_path = Path(f"{photo_dir}/{jpg_filename}")
+
+                    try:
+                        tif_to_jpg(tif_path, jpg_path)
+                        typer.echo(f"Converted {filename} to {jpg_filename}")
+
+                        # Update metadata to point to JPG file
+                        new_photo_href = photo_href.rsplit(".", 1)[0] + ".jpg"
+                        photo_metadata["photo_href"] = new_photo_href
+                        photo_metadata["original_photo_href"] = photo_href  # Keep original for reference
+                        photo_metadata["converted_from_tif"] = True
+                        metadata_updated = True
+
+                        # Optionally delete the TIF file to save space
+                        tif_path.unlink()
+                        typer.echo(f"Removed original TIF file: {filename}")
+
+                    except Exception as e:
+                        typer.echo(f"Failed to convert {filename} to JPG: {e}", err=True)
+
+            except Exception as e:
+                typer.echo(f"Failed to save image {filename}: {e}", err=True)
+        else:
+            typer.echo(
+                f"Failed to download image from {photo_href}. Status code: {response.status_code}"
+            )
+
+    # Write updated metadata back to file if any conversions occurred
+    if metadata_updated:
+        with open(metadata_file, "w", encoding="utf-8") as f:
+            json.dump(photo_metadata_list, f, ensure_ascii=False, indent=4)
+        typer.echo(f"\nUpdated metadata file with converted image references")
 
 
 @cli.command()
@@ -149,7 +189,7 @@ def download_repeat_photography_metadata() -> None:
                     photo_metadata_list.append(photo_metadata)
 
     typer.echo(f"Downloaded metadata for {len(photo_metadata_list)} photos.")
-    with open("repeat_photography_metadata.json", "w", encoding="utf-8") as f:
+    with open("data/repeat_photography_metadata.json", "w", encoding="utf-8") as f:
         json.dump(photo_metadata_list, f, ensure_ascii=False, indent=4)
 
 
@@ -223,7 +263,7 @@ def describe_photo(
             )
             raise typer.Exit(1)
 
-    metadata_path = Path("repeat_photography_metadata.json")
+    metadata_path = Path("data/repeat_photography_metadata.json")
     if not metadata_path.exists():
         typer.echo("Error: repeat_photography_metadata.json not found", err=True)
         typer.echo("Please run: srer download-repeat-photography-metadata", err=True)
@@ -292,7 +332,18 @@ def tif_to_jpg(tif_path: Path, jpg_path: Path) -> None:
 
 @cli.command()
 def convert_repeat_photography_tifs_to_jpgs() -> None:
-    """Convert all TIFF images in the Repeat Photography dataset to JPEG format."""
+    """Convert all TIFF images in the Repeat Photography dataset to JPEG format.
+
+    DEPRECATED: This command is now deprecated. The download_repeat_photo_images command
+    automatically converts TIF files to JPG during download. Use this command only if you
+    need to convert existing TIF files that were downloaded with an older version.
+    """
+    typer.echo("⚠️  WARNING: This command is deprecated.", err=True)
+    typer.echo(
+        "⚠️  The 'download_repeat_photo_images' command now automatically converts TIFs to JPGs.",
+        err=True,
+    )
+    typer.echo("⚠️  Use this only for existing TIF files from older downloads.\n", err=True)
 
     metadata_path = Path("./data/repeat_photography_metadata.json")
     if not metadata_path.exists():
@@ -306,32 +357,53 @@ def convert_repeat_photography_tifs_to_jpgs() -> None:
         typer.echo("Please run: srer download-repeat-photo-images", err=True)
         raise typer.Exit(1)
 
+    metadata_updated = False
+
     with open(metadata_path, "r", encoding="utf-8") as f:
         photo_metadata_list = json.load(f)
-        for photo_metadata in photo_metadata_list:
-            station_id = photo_metadata.get("station_id")
-            photo_href = photo_metadata.get("photo_href")
 
-            if not photo_href or "No link found" in photo_href:
-                continue
+    for photo_metadata in photo_metadata_list:
+        station_id = photo_metadata.get("station_id")
+        photo_href = photo_metadata.get("photo_href")
 
-            filename = photo_href.split("/")[-1]
-            if not filename.lower().endswith(".tif") and not filename.lower().endswith(".tiff"):
-                continue  # Skip non-TIFF files
+        if not photo_href or "No link found" in photo_href:
+            continue
 
-            tif_path = photo_base_dir / station_id / filename
-            jpg_filename = filename.rsplit(".", 1)[0] + ".jpg"
-            jpg_path = photo_base_dir / station_id / jpg_filename
+        filename = photo_href.split("/")[-1]
+        if not filename.lower().endswith(".tif") and not filename.lower().endswith(".tiff"):
+            continue  # Skip non-TIFF files
 
-            if not tif_path.exists():
-                typer.echo(f"TIFF file not found: {tif_path}", err=True)
-                continue
+        tif_path = photo_base_dir / station_id / filename
+        jpg_filename = filename.rsplit(".", 1)[0] + ".jpg"
+        jpg_path = photo_base_dir / station_id / jpg_filename
 
-            try:
-                tif_to_jpg(tif_path, jpg_path)
-                typer.echo(f"Converted {tif_path} to {jpg_path}")
-            except Exception as e:
-                typer.echo(f"Failed to convert {tif_path}: {e}", err=True)
+        if not tif_path.exists():
+            typer.echo(f"TIFF file not found: {tif_path}", err=True)
+            continue
+
+        try:
+            tif_to_jpg(tif_path, jpg_path)
+            typer.echo(f"Converted {tif_path} to {jpg_path}")
+
+            # Update metadata to point to JPG file
+            new_photo_href = photo_href.rsplit(".", 1)[0] + ".jpg"
+            photo_metadata["photo_href"] = new_photo_href
+            photo_metadata["original_photo_href"] = photo_href
+            photo_metadata["converted_from_tif"] = True
+            metadata_updated = True
+
+            # Delete the original TIF file
+            tif_path.unlink()
+            typer.echo(f"Removed original TIF file: {tif_path}")
+
+        except Exception as e:
+            typer.echo(f"Failed to convert {tif_path}: {e}", err=True)
+
+    # Write updated metadata back to file if any conversions occurred
+    if metadata_updated:
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(photo_metadata_list, f, ensure_ascii=False, indent=4)
+        typer.echo(f"\nUpdated metadata file with converted image references")
 
 if __name__ == "__main__":
     cli()
