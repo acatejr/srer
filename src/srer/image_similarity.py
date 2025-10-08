@@ -64,7 +64,9 @@ class ImageSimilarityFinder:
 
         return None
 
-    def compute_image_hash(self, image_path: Path, hash_size: int = 16) -> imagehash.ImageHash:
+    def compute_image_hash(
+        self, image_path: Path, hash_size: int = 16
+    ) -> imagehash.ImageHash:
         """Compute perceptual hash for an image.
 
         Args:
@@ -82,10 +84,7 @@ class ImageSimilarityFinder:
             return imagehash.phash(img, hash_size=hash_size)
 
     def find_similar_photos(
-        self,
-        query_image_path: Path,
-        top_k: int = 5,
-        max_distance: int = 20
+        self, query_image_path: Path, top_k: int = 5, max_distance: int = 20
     ) -> List[Tuple[dict, int, Path]]:
         """Find similar photos to the query image.
 
@@ -121,7 +120,9 @@ class ImageSimilarityFinder:
         results.sort(key=lambda x: x[1])
         return results[:top_k]
 
-    def get_photo_descriptions(self, similar_photos: List[Tuple[dict, int, Path]]) -> List[dict]:
+    def get_photo_descriptions(
+        self, similar_photos: List[Tuple[dict, int, Path]]
+    ) -> List[dict]:
         """Extract descriptions from similar photos.
 
         Args:
@@ -132,12 +133,14 @@ class ImageSimilarityFinder:
         """
         descriptions = []
         for entry, distance, local_path in similar_photos:
-            descriptions.append({
-                "station_id": entry["station_id"],
-                "photo_archive_no": entry["photo_archive_no"],
-                "summary_text": entry["summary_text"],
-                "direction": entry["direction"],
-                "similarity_distance": distance,
-                "image_path": str(local_path)
-            })
+            descriptions.append(
+                {
+                    "station_id": entry["station_id"],
+                    "photo_archive_no": entry["photo_archive_no"],
+                    "summary_text": entry["summary_text"],
+                    "direction": entry["direction"],
+                    "similarity_distance": distance,
+                    "image_path": str(local_path),
+                }
+            )
         return descriptions

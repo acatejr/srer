@@ -9,3 +9,7 @@ fixtures/
 tmp/
 data/srer/photos/
 .DS_Store
+.ruff_cache/
+.venv/
+__pycache__/
+.ipynb_checkpoints/

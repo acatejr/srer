@@ -17,7 +17,7 @@ class DescriptionGenerator:
         provider: Literal["anthropic", "ollama"] = "anthropic",
         api_key: str | None = None,
         ollama_model: str = "llama3.2-vision",
-        ollama_host: str | None = None
+        ollama_host: str | None = None,
     ):
         """Initialize the description generator.
 
@@ -62,7 +62,7 @@ class DescriptionGenerator:
             ".gif": "image/gif",
             ".webp": "image/webp",
             ".tif": "image/tiff",
-            ".tiff": "image/tiff"
+            ".tiff": "image/tiff",
         }
         media_type = media_type_map.get(ext, "image/jpeg")
 
@@ -72,7 +72,7 @@ class DescriptionGenerator:
         self,
         query_image_path: Path,
         similar_descriptions: List[dict],
-        max_tokens: int = 1024
+        max_tokens: int = 1024,
     ) -> str:
         """Generate a description for a new photo based on similar photos.
 
@@ -131,10 +131,7 @@ Be specific about plant species, ecological conditions, and landscape features. 
                                     "data": image_data,
                                 },
                             },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
+                            {"type": "text", "text": prompt},
                         ],
                     }
                 ],
@@ -146,24 +143,22 @@ Be specific about plant species, ecological conditions, and landscape features. 
             # Call Ollama API with vision
             kwargs = {}
             if self.ollama_host:
-                kwargs['host'] = self.ollama_host
+                kwargs["host"] = self.ollama_host
 
             response = ollama.chat(
                 model=self.ollama_model,
                 messages=[
                     {
-                        'role': 'user',
-                        'content': prompt,
-                        'images': [str(query_image_path)]
+                        "role": "user",
+                        "content": prompt,
+                        "images": [str(query_image_path)],
                     }
                 ],
-                options={
-                    'num_predict': max_tokens
-                },
-                **kwargs
+                options={"num_predict": max_tokens},
+                **kwargs,
             )
 
-            return response['message']['content']
+            return response["message"]["content"]
 
     def generate_description_text_only(
         self,
@@ -200,12 +195,7 @@ Please write a single paragraph description that captures the typical characteri
             message = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=512,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
+                messages=[{"role": "user", "content": prompt}],
             )
 
             return message.content[0].text
@@ -213,20 +203,13 @@ Please write a single paragraph description that captures the typical characteri
         elif self.provider == "ollama":
             kwargs = {}
             if self.ollama_host:
-                kwargs['host'] = self.ollama_host
+                kwargs["host"] = self.ollama_host
 
             response = ollama.chat(
                 model=self.ollama_model,
-                messages=[
-                    {
-                        'role': 'user',
-                        'content': prompt
-                    }
-                ],
-                options={
-                    'num_predict': 512
-                },
-                **kwargs
+                messages=[{"role": "user", "content": prompt}],
+                options={"num_predict": 512},
+                **kwargs,
             )
 
-            return response['message']['content']
+            return response["message"]["content"]
